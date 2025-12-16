@@ -1,0 +1,229 @@
+# ACS Data Aggregation Task List
+
+## Overview
+Aggregate ACS raw data columns to reduce dimensionality while preserving meaningful signals.
+- Input: `data/acs_raw/acs_{year}.parquet` (2009-2024, excluding 2020)
+- Output: `data/acs_agg/acs_{year}.parquet`
+- Keep only estimate columns (drop margin_of_error, annotation_of_estimate, annotation_of_margin_of_error)
+- Keep identifier columns: place_fips, place_name, state_fips, year
+
+---
+
+## Task 1: Create aggregation script scaffold
+**File**: `src/acs_aggregation.py`
+
+Create a Python script with:
+- Function `load_raw_data(year: int) -> pd.DataFrame` that loads a year's parquet
+- Function `filter_estimate_columns(df: pd.DataFrame) -> pd.DataFrame` that keeps only columns containing `_estimate_` but NOT containing `annotation` or `margin`
+- Function `save_aggregated(df: pd.DataFrame, year: int)` that saves to `data/acs_agg/`
+- Main function that processes all years
+
+---
+
+## Task 2: Aggregate sex_by_age columns
+**Aggregation logic**: Sum columns by sex (male/female) into these age buckets:
+- `age_18_and_under`: under_5 + 5_to_9 + 10_to_14 + 15_to_17
+- `age_19_to_21`: 18_and_19 + 20_years + 21_years
+- `age_22_to_24`: 22_to_24
+- `age_25_to_29`: 25_to_29
+- `age_30_to_39`: 30_to_34 + 35_to_39
+- `age_40_to_49`: 40_to_44 + 45_to_49
+- `age_50_to_59`: 50_to_54 + 55_to_59
+- `age_60_to_69`: 60_and_61 + 62_to_64 + 65_and_66 + 67_to_69
+- `age_70_to_79`: 70_to_74 + 75_to_79
+- `age_80_plus`: 80_to_84 + 85_years_and_over
+
+**Output columns** (12 total):
+- sex_by_age_total
+- sex_by_age_male_{bucket} for each bucket
+- sex_by_age_female_{bucket} for each bucket
+
+---
+
+## Task 3: Aggregate school_enrollment columns
+**Aggregation logic**: Sum grade-level columns into:
+- `enrolled_below_high_school`: nursery_school_preschool + kindergarten + grade_1 through grade_8
+- `enrolled_high_school`: grade_9 + grade_10 + grade_11 + grade_12
+- `enrolled_undergraduate`: enrolled_in_college_undergraduate_years
+- `enrolled_graduate`: graduate_or_professional_school
+- Keep: total, enrolled_in_school, not_enrolled_in_school
+
+**Output columns** (7 total):
+- school_enrollment_total
+- school_enrollment_enrolled
+- school_enrollment_not_enrolled
+- school_enrollment_below_high_school
+- school_enrollment_high_school
+- school_enrollment_undergraduate
+- school_enrollment_graduate
+
+---
+
+## Task 4: Aggregate monthly_housing_costs columns
+**Aggregation logic**: Sum into $500 increments:
+- `under_500`: less_than_$100 + $100_to_$199 + $200_to_$299 + $300_to_$399 + $400_to_$499
+- `500_to_999`: $500_to_$599 + $600_to_$699 + $700_to_$799 + $800_to_$899 + $900_to_$999
+- `1000_to_1499`: $1_000_to_$1_499
+- `1500_to_1999`: $1_500_to_$1_999
+- `2000_to_2499`: $2_000_to_$2_499
+- `2500_to_2999`: $2_500_to_$2_999
+- `3000_plus`: $3_000_or_more
+- Keep: total, no_cash_rent
+
+**Output columns** (9 total):
+- monthly_housing_costs_total
+- monthly_housing_costs_no_cash_rent
+- monthly_housing_costs_under_500
+- monthly_housing_costs_500_to_999
+- monthly_housing_costs_1000_to_1499
+- monthly_housing_costs_1500_to_1999
+- monthly_housing_costs_2000_to_2499
+- monthly_housing_costs_2500_to_2999
+- monthly_housing_costs_3000_plus
+
+---
+
+## Task 5: Aggregate gross_rent_as_percentage_of_income columns
+**Aggregation logic**: Sum into ~10% increments:
+- `under_20_percent`: less_than_10.0_percent + 10.0_to_14.9_percent + 15.0_to_19.9_percent
+- `20_to_29_percent`: 20.0_to_24.9_percent + 25.0_to_29.9_percent
+- `30_to_39_percent`: 30.0_to_34.9_percent + 35.0_to_39.9_percent
+- `40_plus_percent`: 40.0_to_49.9_percent + 50.0_percent_or_more
+- Keep: total, not_computed
+
+**Output columns** (6 total):
+- gross_rent_pct_income_total
+- gross_rent_pct_income_not_computed
+- gross_rent_pct_income_under_20
+- gross_rent_pct_income_20_to_29
+- gross_rent_pct_income_30_to_39
+- gross_rent_pct_income_40_plus
+
+---
+
+## Task 6: Aggregate ratio_of_income_to_poverty columns
+**Aggregation logic**: Binary split at poverty line (1.0):
+- `at_or_below_poverty`: under_.50 + .50_to_.74 + .75_to_.99
+- `above_poverty`: 1.00_to_1.24 + 1.25_to_1.49 + 1.50_to_1.74 + 1.75_to_1.84 + 1.85_to_1.99 + 2.00_to_2.99 + 3.00_to_3.99 + 4.00_to_4.99 + 5.00_and_over
+- Keep: total
+
+**Output columns** (3 total):
+- poverty_ratio_total
+- poverty_ratio_at_or_below
+- poverty_ratio_above
+
+---
+
+## Task 7: Aggregate travel_time_to_work columns
+**Aggregation logic**: Sum into 10-minute increments:
+- `under_10_min`: less_than_5_minutes + 5_to_9_minutes
+- `10_to_19_min`: 10_to_14_minutes + 15_to_19_minutes
+- `20_to_29_min`: 20_to_24_minutes + 25_to_29_minutes
+- `30_to_39_min`: 30_to_34_minutes + 35_to_39_minutes
+- `40_to_59_min`: 40_to_44_minutes + 45_to_59_minutes
+- `60_plus_min`: 60_to_89_minutes + 90_or_more_minutes
+- Keep: total
+
+**Output columns** (7 total):
+- travel_time_total
+- travel_time_under_10
+- travel_time_10_to_19
+- travel_time_20_to_29
+- travel_time_30_to_39
+- travel_time_40_to_59
+- travel_time_60_plus
+
+---
+
+## Task 8: Filter means_of_transportation columns (keep totals only)
+**Logic**: Keep only the transportation mode totals, drop all age breakdowns
+
+**Output columns** (8 total):
+- transportation_total
+- transportation_drove_alone
+- transportation_carpooled
+- transportation_public_transit
+- transportation_walked
+- transportation_taxi_bike_other
+- transportation_worked_from_home
+
+Note: Drop all columns ending in `_16_to_19_years`, `_20_to_24_years`, `_25_to_44_years`, etc.
+
+---
+
+## Task 9: Keep geographical_mobility columns (no aggregation)
+**Logic**: Keep all columns as-is, just rename for brevity
+
+**Rename prefix** from `geographical_mobility_in_the_past_year_by_educational_attainment_for_residence_1_year_ago_in_the_united_states_estimate_total_living_in_area_1_year_ago_` to `geo_mobility_`
+
+**Output columns** (30 total): Keep structure but with shorter names
+
+---
+
+## Task 10: Keep other variable groups as-is
+**Variables to keep without aggregation**:
+- `total_population_estimate_total` → `total_population`
+- `gini_index_of_income_inequality_estimate_gini_index` → `gini_index`
+- All `mean_household_income_of_quintiles_estimate_*` → `income_quintile_*`
+- All `mean_usual_hours_worked_*` → `hours_worked_*`
+- All `total_fields_of_bachelor_s_degrees_reported_estimate_*` → `bachelors_degree_*`
+
+---
+
+## Task 11: Exclude race columns
+**Logic**: Drop all columns containing `race` in the name (data is broken/null)
+
+---
+
+## Task 12: Implement main aggregation pipeline
+**File**: `src/acs_aggregation.py`
+
+Combine all aggregation functions into a single pipeline:
+1. Load raw parquet for year
+2. Filter to estimate columns only
+3. Apply each aggregation function
+4. Concatenate all output columns with identifier columns
+5. Save to `data/acs_agg/acs_{year}.parquet`
+
+---
+
+## Task 13: Process all years and validate
+**Steps**:
+1. Create `data/acs_agg/` directory
+2. Run aggregation for each year: 2009-2024 (skip 2020)
+3. Validate output:
+   - Print shape comparison (before/after column count)
+   - Verify no null values in aggregated columns (except where source had nulls)
+   - Verify row counts match source data
+
+---
+
+## Task 14: Add column consistency check across years
+**Logic**: Some years may have different source column names. Add logic to:
+- Log which source columns are missing for each year
+- Handle missing columns gracefully (fill with NaN or skip)
+- Generate a report of column availability by year
+
+---
+
+## Summary of Final Output Columns (~85 columns)
+
+| Variable Group | Count |
+|----------------|-------|
+| Identifiers (place_fips, place_name, state_fips, year) | 4 |
+| sex_by_age | 21 |
+| school_enrollment | 7 |
+| monthly_housing_costs | 9 |
+| gross_rent_pct_income | 6 |
+| poverty_ratio | 3 |
+| travel_time | 7 |
+| transportation (totals only) | 7 |
+| geo_mobility | 30 |
+| total_population | 1 |
+| gini_index | 1 |
+| income_quintile | 6 |
+| hours_worked | 3 |
+| bachelors_degree | 16 |
+| **Total** | **~121** |
+
+Down from 1228 original columns to ~121 aggregated columns.
